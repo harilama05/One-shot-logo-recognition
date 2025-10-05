@@ -1,0 +1,43 @@
+{
+    "video": {
+        "default_path": "query.mp4",
+        "fps_limit": 30,
+        "frame_skip": 1
+    },
+    "models": {
+        "yolo_path": "best 3.pt",
+        "recognition_path": "arcface_logo_model_best.pth",
+        "device": "auto"
+    },
+    "detection": {
+        "confidence_threshold": 0.7,
+        "recognition_threshold": 0.4,
+        "batch_size": 20
+    },
+    "directories": {
+        "support": "support",
+        "mask": "mask", 
+        "output": "output_yolo",
+        "detected": "detected_frames"
+    },
+    "tracking": {
+        "enable_kalman": true,
+        "max_age": 30,
+        "min_hits": 3
+    },
+    "web": {
+        "host": "0.0.0.0",
+        "port": 5000,
+        "debug": true,
+        "max_detections_display": 20,
+        "max_log_entries": 100
+    },
+    "recognition": {
+        "embedding_dim": 512,
+        "image_size": 380,
+        "normalization": {
+            "mean": [0.485, 0.456, 0.406],
+            "std": [0.229, 0.224, 0.225]
+        }
+    }
+}
