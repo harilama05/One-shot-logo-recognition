@@ -1,0 +1,16 @@
+torch>=1.9.0
+torchvision>=0.10.0
+ultralytics>=8.0.0
+opencv-python>=4.7.0
+efficientnet-pytorch>=0.7.1
+numpy>=1.23.0
+Pillow>=9.5.0
+scikit-learn>=1.2.0
+timm>=0.9.0
+transformers>=4.30.0
+tqdm>=4.65.0
+Flask>=2.2.0
+Flask-SocketIO>=5.3.0
+python-socketio>=5.7.0
+eventlet>=0.33.0
+werkzeug>=2.2.0

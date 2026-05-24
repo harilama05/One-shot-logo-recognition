@@ -1,0 +1,45 @@
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.vscode/
+.idea/
+*.swp
+*~
+
+# Models & embeddings
+*.pt
+*.pth
+*.pkl
+*.onnx
+embedding_db*.pkl
+
+# Outputs
+output*/
+outputs/
+logs/
+*.log
+
+# Video
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Dataset / masks (not tracked)
+data/
+dataset/
+datasets/
+logo_input/
+logo_masks/
+logo_masks_specific/
+logo_output/
+logo_output_cropped/
+support/
+mask/
+detected_frames/
+output_yolo/

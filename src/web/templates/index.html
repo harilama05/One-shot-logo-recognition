@@ -1,0 +1,609 @@
+<!-- index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Nhận diện Logo</title>
+    <!-- Nhúng các thư viện JS cần thiết -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        /* Phần CSS để tạo giao diện cho trang web */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        /* Bảng điều khiển chính */
+        .control-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        /* Các nút bấm */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-success:hover { background-color: #1e7e34; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-warning { background-color: #ffc107; color: #212529; }
+        .btn-warning:hover { background-color: #e0a800; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        /* Nhóm input */
+        .input-group { display: flex; align-items: center; gap: 10px; }
+        .input-group input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        
+        /* Bảng trạng thái */
+        .status-panel { margin-bottom: 20px; padding: 15px; background: #e9ecef; border-radius: 8px; }
+        .status-item { margin: 5px 0; font-size: 14px; }
+        
+        /* Layout chính */
+        .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        
+        .video-section, .detection-section { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; }
+        .section-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #495057; }
+        
+        /* Khung hiển thị video */
+        #video-display { width: 100%; max-width: 640px; height: auto; border: 2px solid #ddd; border-radius: 8px; background: #000; }
+        
+        .frame-info { margin-top: 10px; padding: 10px; background: #e9ecef; border-radius: 4px; font-size: 14px; }
+        
+        /* Lưới hiển thị các detection */
+        .detections-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; max-height: 600px; overflow-y: auto; }
+        
+        /* Mỗi item detection */
+        .detection-item { border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: white; transition: transform 0.2s; }
+        .detection-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .detection-item.selected { border-color: #007bff; background-color: #e7f3ff; }
+        .detection-image { width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 8px; background: #f8f9fa; transition: opacity 0.2s; }
+        .detection-image.loading { opacity: 0.6; }
+        .detection-image.loaded { opacity: 1; }
+        .detection-info { font-size: 12px; color: #666; }
+        .detection-label { font-weight: bold; color: #333; margin: 5px 0; }
+        
+        /* Form đăng ký detection */
+        .register-form { margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; }
+        .register-form input { width: 70%; padding: 8px; margin-right: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        
+        /* Phần log hệ thống */
+        .log-section { margin-top: 20px; grid-column: span 2; }
+        .log-container { height: 200px; overflow-y: auto; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px; font-family: monospace; font-size: 12px; }
+        .log-entry { margin: 2px 0; padding: 2px 0; }
+        .log-info { color: #17a2b8; }
+        .log-success { color: #28a745; }
+        .log-warning { color: #ffc107; }
+        .log-error { color: #dc3545; }
+        
+        .database-info { margin-top: 15px; padding: 10px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; font-size: 14px; }
+        
+        /* Modal (cửa sổ pop-up), hiện không dùng */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 15% auto; padding: 20px; border-radius: 8px; width: 80%; max-width: 500px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: black; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Phần tiêu đề -->
+        <div class="header">
+            <h1>Hệ thống Nhận diện Logo</h1>
+            <p>Phát hiện và nhận diện logo thời gian thực với chức năng đăng ký trực tiếp</p>
+        </div>
+        
+        <!-- Bảng điều khiển -->
+        <div class="control-panel">
+            <button id="load-models-btn" class="btn btn-primary">Tải Model</button>
+            
+            <div class="input-group">
+                <input type="text" id="video-path" placeholder="Nhập đường dẫn video" value="query.mp4">
+                <button id="start-video-btn" class="btn btn-success" disabled>Bắt đầu</button>
+                <button id="stop-video-btn" class="btn btn-danger" disabled>Dừng</button>
+            </div>
+            
+            <div class="input-group">
+                <input type="text" id="support-dir" placeholder="Thư mục support" value="support">
+                <input type="text" id="mask-dir" placeholder="Thư mục mask" value="mask">
+                <button id="register-support-btn" class="btn btn-warning" disabled>Đăng ký Support</button>
+            </div>
+            
+            <button id="refresh-db-btn" class="btn btn-primary" disabled>Làm mới Database</button>
+            <button id="show-detections-btn" class="btn btn-warning" style="display:none">Hiển thị Detections</button>
+        </div>
+        
+        <!-- Bảng trạng thái -->
+        <div class="status-panel">
+            <div class="status-item"><strong>Trạng thái:</strong> <span id="status">Sẵn sàng</span></div>
+            <div class="status-item"><strong>Frame:</strong> <span id="frame-count">0</span></div>
+            <div class="status-item"><strong>Detections:</strong> <span id="detection-count">0</span></div>
+            <div class="status-item"><strong>Database:</strong> <span id="db-info">Chưa tải</span></div>
+        </div>
+        
+        <!-- Nội dung chính -->
+        <div class="main-content">
+            <!-- Khu vực video -->
+            <div class="video-section">
+                <div class="section-title">Luồng Video</div>
+                <img id="video-display" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQwIiBoZWlnaHQ9IjQ4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIFZpZGVvPC90ZXh0Pjwvc3ZnPg==" alt="Video Stream">
+                <div class="frame-info">
+                    <div><strong>Frame hiện tại:</strong> <span id="current-frame">0</span></div>
+                    <div><strong>Detections trong frame:</strong> <span id="current-detections">0</span></div>
+                    <div><strong>Thời gian xử lý:</strong> <span id="processing-time">0ms</span></div>
+                </div>
+            </div>
+            
+            <!-- Khu vực detections -->
+            <div class="detection-section">
+                <div class="section-title">Các Logo đã phát hiện</div>
+                <div id="detections-container" class="detections-grid">
+                    <!-- Detections sẽ được thêm vào đây -->
+                </div>
+                
+                <!-- Form đăng ký -->
+                <div class="register-form" style="display: none;" id="register-form">
+                    <h4>Đăng ký Detection đã chọn</h4>
+                    <input type="text" id="new-class-name" placeholder="Nhập tên class" required>
+                    <button id="register-detection-btn" class="btn btn-success">Đăng ký</button>
+                    <button id="cancel-register-btn" class="btn btn-danger">Hủy</button>
+                </div>
+                
+                <div class="database-info">
+                    <div id="database-details">Database chưa được tải</div>
+                </div>
+            </div>
+            
+            <!-- Khu vực log -->
+            <div class="log-section">
+                <div class="section-title">Log Hệ thống</div>
+                <div id="log-container" class="log-container">
+                    <div class="log-entry log-info">Hệ thống đã khởi tạo. Sẵn sàng bắt đầu...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal (không dùng) -->
+    <div id="detections-modal" class="modal" style="display:none"></div>
+
+    <script>
+        // Các biến toàn cục trong Javascript
+        let socket = io(); // Đối tượng socket để giao tiếp với server
+        let selectedDetection = null; // ID của detection đang được chọn
+        let lastDetectionUpdate = 0;
+        let detectionUpdateThrottle = 1000; // Thời gian chờ giữa các lần cập nhật panel detection
+        let forceReload = false; // Cờ để buộc tải lại panel
+        let batchStartTime = null; // Thời gian bắt đầu batch detection
+        
+        // Chạy khi trang đã tải xong
+        $(document).ready(function() {
+            initializeSocketEvents();
+            initializeButtonEvents();
+            loadDatabaseInfo();
+            logMessage('Hệ thống sẵn sàng. Tải model để bắt đầu.', 'info');
+            reloadDetectionsPanel();
+            
+            // Tự động tải lại panel detection mỗi 5 giây
+            setInterval(function() {
+                if (!forceReload) {
+                    reloadDetectionsPanel();
+                }
+            }, 5000);
+        });
+        
+        // Khởi tạo các sự kiện lắng nghe từ socket
+        function initializeSocketEvents() {
+            socket.on('connect', function() {
+                logMessage('Đã kết nối tới server', 'success');
+            });
+            
+            socket.on('disconnect', function() {
+                logMessage('Đã mất kết nối tới server', 'warning');
+            });
+            
+            // Sự kiện quan trọng nhất: nhận kết quả xử lý frame từ server
+            socket.on('frame_processed', function(data) {
+                updateVideoDisplay(data);
+                updateDetections(data);
+                updateFrameInfo(data);
+                
+                if (data.batch_start_time) {
+                    batchStartTime = data.batch_start_time;
+                }
+
+                // Buộc tải lại panel nếu có detection mới
+                if (data.detections && data.detections.length > 0) {
+                    forceReload = true;
+                    setTimeout(function() {
+                        reloadDetectionsPanel();
+                        forceReload = false;
+                    }, 500);
+                }
+            });
+            
+            socket.on('video_ended', function(data) {
+                logMessage('Xử lý video hoàn tất', 'info');
+                $('#start-video-btn').prop('disabled', false);
+                $('#stop-video-btn').prop('disabled', true);
+                $('#status').text('Video đã hoàn thành');
+            });
+            
+            socket.on('error', function(data) {
+                logMessage('Lỗi: ' + data.message, 'error');
+            });
+            
+            socket.on('status', function(data) {
+                logMessage(data.message, 'info');
+            });
+        }
+        
+        // Gán sự kiện click cho các nút
+        function initializeButtonEvents() {
+            $('#load-models-btn').click(loadModels);
+            $('#start-video-btn').click(startVideo);
+            $('#stop-video-btn').click(stopVideo);
+            $('#register-support-btn').click(registerSupport);
+            $('#refresh-db-btn').click(loadDatabaseInfo);
+            $('#register-detection-btn').click(registerSelectedDetection);
+            $('#cancel-register-btn').click(cancelRegistration);
+        }
+        
+        // Gửi yêu cầu tải model
+        function loadModels() {
+            $('#load-models-btn').prop('disabled', true);
+            $('#status').text('Đang tải model...');
+            logMessage('Đang tải model YOLO và nhận diện...', 'info');
+            
+            $.ajax({
+                url: '/api/load_models',
+                method: 'POST',
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.success) {
+                        logMessage('Tải model thành công', 'success');
+                        $('#status').text('Đã tải Model');
+                        $('#start-video-btn').prop('disabled', false);
+                        $('#register-support-btn').prop('disabled', false);
+                        $('#refresh-db-btn').prop('disabled', false);
+                        loadDatabaseInfo();
+                    } else {
+                        logMessage('Tải model thất bại: ' + response.message, 'error');
+                        $('#status').text('Lỗi tải Model');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    logMessage('Lỗi tải model: ' + error, 'error');
+                    $('#status').text('Lỗi tải Model');
+                },
+                complete: function() {
+                    $('#load-models-btn').prop('disabled', false);
+                }
+            });
+        }
+        
+        // Gửi yêu cầu bắt đầu video
+        function startVideo() {
+            const videoPath = $('#video-path').val();
+            $('#start-video-btn').prop('disabled', true);
+            $('#status').text('Đang bắt đầu video...');
+            logMessage('Bắt đầu xử lý video: ' + videoPath, 'info');
+            
+            $.ajax({
+                url: '/api/start_video',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({video_path: videoPath}),
+                success: function(response) {
+                    if (response.success) {
+                        logMessage('Bắt đầu video thành công', 'success');
+                        $('#status').text('Đang xử lý Video');
+                        $('#stop-video-btn').prop('disabled', false);
+                        $('#frame-count').text('0');
+                        $('#detection-count').text('0');
+                        clearDetections();
+                    } else {
+                        logMessage('Bắt đầu video thất bại: ' + response.message, 'error');
+                        $('#status').text('Lỗi bắt đầu Video');
+                        $('#start-video-btn').prop('disabled', false);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    logMessage('Lỗi bắt đầu video: ' + error, 'error');
+                    $('#status').text('Lỗi bắt đầu Video');
+                    $('#start-video-btn').prop('disabled', false);
+                }
+            });
+        }
+        
+        // Gửi yêu cầu dừng video
+        function stopVideo() {
+            $('#stop-video-btn').prop('disabled', true);
+            logMessage('Đang dừng xử lý video...', 'info');
+            
+            $.ajax({
+                url: '/api/stop_video',
+                method: 'POST',
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.success) {
+                        logMessage('Đã dừng video', 'info');
+                        $('#status').text('Đã dừng Video');
+                        $('#start-video-btn').prop('disabled', false);
+                    } else {
+                        logMessage('Dừng video thất bại: ' + response.message, 'error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    logMessage('Lỗi dừng video: ' + error, 'error');
+                },
+                complete: function() {
+                    $('#stop-video-btn').prop('disabled', true);
+                }
+            });
+        }
+        
+        // Gửi yêu cầu đăng ký support
+        function registerSupport() {
+            const supportDir = $('#support-dir').val();
+            const maskDir = $('#mask-dir').val();
+            
+            $('#register-support-btn').prop('disabled', true);
+            logMessage('Đang đăng ký ảnh support từ: ' + supportDir, 'info');
+            
+            $.ajax({
+                url: '/api/register_support',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    support_dir: supportDir,
+                    mask_dir: maskDir
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        logMessage('Đăng ký ảnh support thành công', 'success');
+                        loadDatabaseInfo();
+                    } else {
+                        logMessage('Đăng ký support thất bại: ' + response.message, 'error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    logMessage('Lỗi đăng ký support: ' + error, 'error');
+                },
+                complete: function() {
+                    $('#register-support-btn').prop('disabled', false);
+                }
+            });
+        }
+        
+        // Gửi yêu cầu đăng ký một detection đã chọn
+        function registerSelectedDetection() {
+            if (!selectedDetection) {
+                logMessage('Chưa chọn detection nào', 'warning');
+                return;
+            }
+            
+            const className = $('#new-class-name').val().trim();
+            if (!className) {
+                logMessage('Vui lòng nhập tên class', 'warning');
+                return;
+            }
+            
+            $('#register-detection-btn').prop('disabled', true);
+            logMessage(`Đang đăng ký detection ${selectedDetection} với tên: ${className}`, 'info');
+            
+            $.ajax({
+                url: '/api/register_detection',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    detection_id: selectedDetection,
+                    class_name: className
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        logMessage(`Đã đăng ký detection là ${className}`, 'success');
+                        loadDatabaseInfo();
+                        cancelRegistration();
+                    } else {
+                        logMessage('Đăng ký detection thất bại: ' + response.message, 'error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    logMessage('Lỗi đăng ký detection: ' + error, 'error');
+                },
+                complete: function() {
+                    $('#register-detection-btn').prop('disabled', false);
+                }
+            });
+        }
+        
+        // Tải và hiển thị thông tin database
+        function loadDatabaseInfo() {
+            $.ajax({
+                url: '/api/get_database_info',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const info = `${response.total_embeddings} embeddings, ${Object.keys(response.classes).length} lớp`;
+                        $('#db-info').text(info);
+                        
+                        let detailsHtml = `<strong>Thông tin Database:</strong><br>`;
+                        detailsHtml += `Tổng số Embeddings: ${response.total_embeddings}<br>`;
+                        detailsHtml += `Số lớp: ${Object.keys(response.classes).length}<br><br>`;
+                        
+                        if (Object.keys(response.classes).length > 0) {
+                            detailsHtml += `<strong>Phân bố lớp:</strong><br>`;
+                            for (const [className, count] of Object.entries(response.classes)) {
+                                detailsHtml += `${className}: ${count}<br>`;
+                            }
+                        }
+                        
+                        $('#database-details').html(detailsHtml);
+                    } else {
+                        $('#db-info').text('Lỗi database');
+                        $('#database-details').text('Không thể tải thông tin database');
+                    }
+                },
+                error: function() {
+                    $('#db-info').text('Lỗi database');
+                    $('#database-details').text('Lỗi tải thông tin database');
+                }
+            });
+        }
+        
+        // Cập nhật giao diện
+        function updateVideoDisplay(data) {
+            if (data.frame_base64) {
+                $('#video-display').attr('src', 'data:image/jpeg;base64,' + data.frame_base64);
+            }
+        }
+
+        // Tải lại toàn bộ panel detection từ server
+        function reloadDetectionsPanel() {
+            let params = { base64: 1 };
+            if (batchStartTime) {
+                params['batch_start_time'] = batchStartTime;
+            }
+            $.ajax({
+                url: '/api/get_detections?' + $.param(params),
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        renderDetectionsPanel(response.detections);
+                    } else {
+                        logMessage('Tải detections thất bại: ' + response.message, 'error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    logMessage('Lỗi tải detections: ' + error, 'error');
+                }
+            });
+        }
+
+        // Hiển thị các detection lên panel
+        function renderDetectionsPanel(detections) {
+            const container = $('#detections-container');
+            container.empty(); // Xóa hết nội dung cũ
+            
+            // Sắp xếp mới nhất lên đầu
+            detections.sort((a, b) => b.mtime - a.mtime);
+
+            detections.slice(0, 50).forEach(function(detection) {
+                let imgHtml;
+                // Ưu tiên dùng thumbnail base64 nếu có
+                if (detection.thumb) {
+                    imgHtml = `<img src="data:image/jpeg;base64,${detection.thumb}" alt="Detection" class="detection-image loaded">`;
+                } else {
+                    imgHtml = `<img src="${detection.crop_path}" alt="Detection" class="detection-image loading" onload="this.className='detection-image loaded';" onerror="this.src='...';">`;
+                }
+                
+                const el = $(`
+                    <div class="detection-item" data-id="${detection.id}">
+                        ${imgHtml}
+                        <div class="detection-label">${detection.id.substring(0,8)}...</div>
+                        <div class="detection-info">
+                            ${detection.has_mask ? '🎭 Có Mask' : '❌ Không có Mask'}
+                        </div>
+                    </div>
+                `);
+                container.append(el);
+            });
+            
+            // Gán lại sự kiện click
+            $('.detection-item').off('click').on('click', function() {
+                const id = $(this).data('id');
+                selectDetection(id, $(this));
+            });
+        }
+
+        // Hàm này được gọi mỗi khi có frame mới, nhưng chỉ thực sự reload panel sau một khoảng thời gian
+        function updateDetections(data) {
+            const now = Date.now();
+            if (now - lastDetectionUpdate > detectionUpdateThrottle) {
+                lastDetectionUpdate = now;
+                reloadDetectionsPanel();
+            }
+        }
+        
+        function selectDetection(detectionId, element) {
+            $('.detection-item').removeClass('selected');
+            element.addClass('selected');
+            selectedDetection = detectionId;
+            $('#register-form').show();
+            $('#new-class-name').val('').focus();
+            logMessage(`Đã chọn detection: ${detectionId}`, 'info');
+        }
+        
+        function cancelRegistration() {
+            $('.detection-item').removeClass('selected');
+            selectedDetection = null;
+            $('#register-form').hide();
+            $('#new-class-name').val('');
+        }
+        
+        function clearDetections() {
+            $('#detections-container').empty();
+            cancelRegistration();
+        }
+        
+        // Hàm để ghi log ra màn hình
+        function logMessage(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = 'log-' + type;
+            const logHtml = `<div class="log-entry ${logClass}">[${timestamp}] ${message}</div>`;
+            $('#log-container').append(logHtml);
+            const container = $('#log-container')[0];
+            container.scrollTop = container.scrollHeight; // Tự cuộn xuống dưới
+            // Giới hạn số lượng log
+            const entries = $('#log-container .log-entry');
+            if (entries.length > 100) {
+                entries.slice(0, entries.length - 100).remove();
+            }
+        }
+
+        // Cập nhật thông tin frame
+        function updateFrameInfo(data) {
+            if (!data) return;
+            if (data.frame_id !== undefined) $('#current-frame').text(data.frame_id);
+            if (data.detections !== undefined) $('#current-detections').text(data.detections.length);
+            if (data.processing_time !== undefined) {
+                $('#processing-time').text(data.processing_time + 'ms');
+            }
+        }
+    </script>
+</body>
+</html>
