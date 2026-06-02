@@ -1,81 +1,110 @@
 # One-shot Logo Recognition
 
-This project implements a one-shot logo recognition system for videos and images. The system combines object detection and segmentation using YOLO with feature extraction and matching using ArcFace (based on the EfficientNet architecture). This allows the system to recognize new logos from a single reference image (one-shot) without the need to retrain the entire model.
+A one-shot logo recognition system for videos and images. Combines **YOLO v11** (detection + instance segmentation) with **ArcFace** (EfficientNet-B4 backbone) to recognize new logos from a **single reference image** — no retraining required.
 
 ---
 
-## Pipeline Architecture (Multi-threading)
+## Pipeline Architecture
 
-The video data stream is processed through a high-performance multi-threaded pipeline. The system utilizes independent Workers communicating via thread-safe queues (`CircularQueue`) to ensure concurrent execution and maximize processing speed:
+The system processes video frames sequentially through a chain of specialized Workers:
 
-1. **Input Worker**: Reads the input video/image stream and extracts frames sequentially.
-2. **YOLO Detect Worker (Detection & Segmentation)**:
-   - Uses the YOLO model (`best.pt`) to detect bounding boxes containing logos.
-   - Applies segmentation masks to remove background noise, improving the accuracy of logo feature extraction.
-3. **ArcFace Recognition Worker (Feature Extraction & Matching)**:
-   - The cropped and masked logo regions are passed through the ArcFace neural network (`arcface_logo_model_best_b4_64_06.pth`).
-   - ArcFace converts the logo image into a 1D feature vector (Embedding of size 512).
-   - The system computes the Cosine similarity between this embedding and a database of known logos (`embedding_db.pkl`). If the similarity exceeds a threshold, the logo is labeled accordingly.
-4. **Post-process & Output Worker**:
-   - Aggregates recognition results. Draws bounding boxes, labels, and confidence scores onto the original frames.
-   - Writes the processed frames to the output video file.
+![Pipeline Architecture](docs/pipeline_architecture.png)
+
+```
+Video → InputWorker → DetectWorker (YOLO v11) → PostProcessDetectWorker (Crop + Mask)
+    → RecogWorker (ArcFace Matching) → PostProcessRecogWorker (Draw Results) → OutputWorker → Output Video
+```
+
+Each Worker produces a typed dataclass (`InputItem → DetectedItem → PostprocessedDetectedItem → RecognizedItem → PostprocessedRecognizedItem`) flowing through the pipeline. Utility classes `CircularQueue` and `FrameDict` are built-in as infrastructure for future multi-threaded expansion.
 
 ---
 
-## Repository Structure (OOP Architecture)
+## ArcFace Recognition Architecture
 
-```text
+![ArcFace Architecture](docs/arcface_architecture.png)
+
+**Registration (One-Shot):** A single logo image is resized to 380×380, passed through EfficientNet-B4, pooled (mask-aware if mask available), then projected via an MLP head (`1792 → 1024 → 512`) to a L2-normalized 512-D embedding. Stored in `embedding_db.pkl`.
+
+**Recognition:** Detected logo crops go through the same encoder. The query embedding is matched against the database via cosine similarity (`torch.mm` on L2-normalized vectors). If `similarity ≥ 0.4`, the logo is labeled; otherwise marked as "Unknown".
+
+| Parameter | Value |
+|-----------|-------|
+| Backbone | EfficientNet-B4 (pretrained ImageNet) |
+| Embedding Size | 512-D |
+| Input Size | 380 × 380 (padded, fill=128) |
+| Similarity Metric | Cosine Similarity |
+| Default Threshold | 0.4 |
+
+---
+
+## Dataset Preparation
+
+![Dataset Pipeline](docs/dataset_pipeline.png)
+
+The `dataset/` directory contains 200 brand logos processed through a background removal pipeline:
+
+```
+logo_input/ (200 raw logos) → logo_masks/ (binary masks) → logo_output/ (bg removed)
+                            → logo_masks_specific/         → logo_output_cropped/ (tight crop)
+```
+
+Each processed logo is encoded into a 512-D embedding and stored in `embedding_db.pkl` for one-shot matching.
+
+---
+
+## Web App Architecture
+
+A Flask + SocketIO web interface with OOP/MVC architecture, sharing the EfficientNet-B4 model with the CLI:
+
+![Web App Architecture](docs/webapp_architecture.png)
+
+| Layer | Component | Role |
+|-------|-----------|------|
+| Routes | `views.py`, `api.py` | Page rendering, REST API (upload, register, start/stop) |
+| Events | `events.py` | WebSocket handlers for realtime frame streaming |
+| Services | `video_service.py` | Frame-by-frame YOLO + ArcFace inference |
+| Services | `registry_service.py` | One-shot logo registration & embedding CRUD |
+
+---
+
+## Repository Structure
+
+```
 one-shot-logo-recognition/
-├── scripts/               # Quick run entrypoint scripts.
-├── src/                   # Main source code directory.
-│   ├── oslr/              # Core CLI pipeline package (Multi-threading Workers & utils).
-│   └── web/               # Visual Web Demo Application (OOP/MVC Architecture).
-│       ├── app.py         # Application factory & SocketIO entrypoint.
-│       ├── config.py      # Global configuration manager.
-│       ├── utils.py       # Shared utility functions.
-│       ├── extensions.py  # Extension initializations (e.g., SocketIO).
-│       ├── events.py      # WebSocket real-time event management.
-│       ├── routes/        # API & View routing.
-│       │   ├── api.py     # Backend REST APIs.
-│       │   └── views.py   # HTML template rendering.
-│       ├── services/      # Business Logic Layer.
-│       │   ├── video_service.py    # Video inference logic (YOLO + ArcFace).
-│       │   └── registry_service.py # Logo registration & embedding storage.
-│       ├── static/        # Static files (CSS, JS).
-│       └── templates/     # HTML templates.
-├── training/              # Model training scripts.
-├── weights/               # Directory for model weights (YOLO, ArcFace).
-├── dataset/               # Dataset directory.
-├── requirements.txt       # Python dependencies.
-└── README.md              # This documentation file.
+├── scripts/run_pipeline.py          # CLI entrypoint
+├── src/
+│   ├── oslr/                        # Core pipeline package
+│   │   ├── cli.py, config.py, pipeline.py
+│   │   ├── models/                  # arcface_model.py, yolo_model.py
+│   │   ├── workers/                 # input, detect, postprocess, recog, output workers
+│   │   └── utils/                   # circular_queue, frame_dict, image_utils, item_classes
+│   └── web/                         # Flask web application
+│       ├── app.py, config.py, config.json, events.py
+│       ├── routes/                  # api.py, views.py
+│       ├── services/               # video_service.py, registry_service.py
+│       └── templates/index.html
+├── training/                        # ConvNeXt V2 training experiments
+├── weights/                         # YOLO + ArcFace model weights
+├── dataset/                         # Logo dataset (git-ignored)
+└── requirements.txt
 ```
 
 ---
 
-## Environment Setup
+## Setup & Usage
 
-**Python 3.8+** is required. It is recommended to use a virtual environment (virtualenv or conda).
+**Requirements:** Python 3.8+
 
 ```bash
-# Install required libraries
 pip install -r requirements.txt
 ```
 
----
+Place model weights in `weights/`:
+- `best.pt` — YOLO v11 (~45 MB)
+- `arcface_logo_model_best_b4_64_06.pth` — ArcFace EfficientNet-B4 (~75 MB)
 
-## Model Weights
+### CLI
 
-The system requires two weight files to operate. Please place these files in the `weights/` directory:
-1. `best.pt`: YOLO model weights for object detection and segmentation.
-2. `arcface_logo_model_best_b4_64_06.pth`: ArcFace model weights for feature extraction.
-
----
-
-## Usage (Command Line Interface - CLI)
-
-You can run the pipeline directly to process videos via the provided script helper.
-
-Basic syntax (ensure you are in the root directory of the project):
 ```bash
 python scripts/run_pipeline.py \
   --video "output/query.mp4" \
@@ -87,37 +116,21 @@ python scripts/run_pipeline.py \
   --recog-threshold 0.4
 ```
 
-Alternatively, run the module directly (requires navigating to the `src` directory):
+Or run as a module:
 ```bash
-cd src
-python -m oslr --help
+cd src && python -m oslr --help
 ```
 
-### Main Parameters:
-- `--video`: Path to the input video file.
-- `--yolo-weights`: Path to the YOLO weights file.
-- `--recog-weights`: Path to the ArcFace weights file.
-- `--embed-db`: Path to the database storing logo vectors (Pickle file storing `(embedding, label)` tuples).
-- `--output`: Path to export the resulting output video.
-- `--conf-threshold`: YOLO confidence threshold (default: `0.7`).
-- `--recog-threshold`: ArcFace similarity threshold for accepting a match (default: `0.4`).
-- `--device`: Specify the device to run on (e.g., `cuda:0`, `cpu`). Defaults to auto-detection.
+### Web App
+
+```bash
+cd src/web && python app.py
+```
+
+Access at `http://localhost:5000`
 
 ---
 
-## Web App Demo
+## Training
 
-The project provides a lightweight Web interface (Flask + SocketIO) that allows users to upload videos, monitor processing progress in real-time, and preview visual results directly in the browser. The entire Web App codebase uses an OOP architecture and shares the EfficientNet-B4 model with the CLI.
-
-```bash
-cd src/web
-python app.py
-```
-Once started, access the web interface via your browser at: `http://localhost:5000`
-
----
-
-## Data Notes
-
-- The `dataset/` directory is excluded via `.gitignore` by default to prevent uploading large datasets to GitHub.
-- When testing locally, the system will automatically create an `output/` directory to store output videos and the database file.
+The `training/` directory contains experimental scripts using **ConvNeXt V2 Base** backbone with an improved ArcFace loss (ArcFace + Focal + Center Loss + Orthogonal Regularization). The production model uses **EfficientNet-B4**.
