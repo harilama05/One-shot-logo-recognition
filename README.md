@@ -8,14 +8,7 @@ A one-shot logo recognition system for videos and images. Combines **YOLO v11** 
 
 The system processes video frames sequentially through a chain of specialized Workers:
 
-```mermaid
-graph LR
-    A[Input Worker<br>Read Video] --> B[Detect Worker<br>YOLO v11]
-    B --> C[PostProcess Detect<br>Crop & Mask]
-    C --> D[Recognition Worker<br>ArcFace]
-    D --> E[PostProcess Recog<br>Draw]
-    E --> F[Output Worker<br>Write Video]
-```
+![Pipeline Architecture](docs/pipeline_architecture.png)
 
 Each Worker produces a typed dataclass (`InputItem → DetectedItem → PostprocessedDetectedItem → RecognizedItem → PostprocessedRecognizedItem`) flowing through the pipeline. Utility classes `CircularQueue` and `FrameDict` are built-in as infrastructure for future multi-threaded expansion.
 
@@ -23,24 +16,7 @@ Each Worker produces a typed dataclass (`InputItem → DetectedItem → Postproc
 
 ## ArcFace Recognition Architecture
 
-```mermaid
-graph TD
-    subgraph Registration "Registration (One-Shot)"
-        A1[Reference Image] --> A2[EfficientNet-B4 Backbone]
-        A2 --> A3[ArcFace Head]
-        A3 --> A4[512-D Embedding]
-        A4 --> A5[(embedding_db.pkl)]
-    end
-
-    subgraph Inference "Recognition (Inference)"
-        B1[Detected Logo Crop] --> B2[Apply Mask]
-        B2 --> B3[EfficientNet-B4 Backbone]
-        B3 --> B4[Query Embedding]
-        B4 --> B5{Cosine Similarity<br>vs Database}
-        B5 -->|>= 0.4| B6[Label Matched]
-        B5 -->|< 0.4| B7[Unknown]
-    end
-```
+![ArcFace Architecture](docs/arcface_architecture.png)
 
 **Registration (One-Shot):** A single logo image is resized to 380×380, passed through EfficientNet-B4, pooled (mask-aware if mask available), then projected via an MLP head (`1792 → 1024 → 512`) to a L2-normalized 512-D embedding. Stored in `embedding_db.pkl`.
 
@@ -58,15 +34,7 @@ graph TD
 
 ## Dataset Preparation
 
-```mermaid
-graph LR
-    A[Raw Logo Images<br>logo_input/] --> B[Background Detection<br>& Masking]
-    B --> C[Binary Masks<br>logo_masks/]
-    C --> D[Background Removed<br>logo_output/]
-    D --> E[Cropped Logos<br>logo_output_cropped/]
-    E --> F[EfficientNet-B4<br>Embedding]
-    F --> G[(embedding_db.pkl)]
-```
+![Dataset Pipeline](docs/dataset_pipeline.png)
 
 Each processed logo is encoded into a 512-D embedding and stored in `embedding_db.pkl` for one-shot matching.
 
@@ -76,37 +44,7 @@ Each processed logo is encoded into a 512-D embedding and stored in `embedding_d
 
 A Flask + SocketIO web interface with OOP/MVC architecture, sharing the EfficientNet-B4 model with the CLI:
 
-```mermaid
-graph TD
-    subgraph Client "Client (Browser)"
-        UI[HTML / JS UI]
-        WS[SocketIO Client]
-    end
-
-    subgraph Server "Flask Application"
-        R[Routes: views, api]
-        E[Events: SocketIO]
-    end
-
-    subgraph Services "Business Logic"
-        VS[VideoService<br>YOLO + ArcFace]
-        RS[RegistryService<br>Logo CRUD]
-    end
-
-    subgraph Storage "Storage & Models"
-        W[Model Weights]
-        DB[(embedding_db.pkl)]
-    end
-
-    UI --> R
-    WS <--> E
-    R --> VS
-    R --> RS
-    E --> VS
-    VS --> W
-    VS --> DB
-    RS --> DB
-```
+![Web App Architecture](docs/webapp_architecture.png)
 
 | Layer | Component | Role |
 |-------|-----------|------|
