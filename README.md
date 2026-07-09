@@ -141,7 +141,7 @@ The system was evaluated on the internal logo dataset containing **200 brand cla
 
 We compared four backbone configurations, all trained with the same data split and evaluation protocol:
 
-![Model Comparison](docs/model_comparison.png)
+![Model Comparison](./docs/model_comparison.png)
 
 | Model | Backbone | Loss | Accuracy | Precision | Recall | F1-Score |
 |-------|----------|------|----------|-----------|--------|----------|
@@ -161,7 +161,7 @@ We compared four backbone configurations, all trained with the same data split a
 
 The training curves below show convergence of the combined loss function (ArcFace + Center Loss + Orthogonal Regularization) and validation accuracy over 100 epochs. The best model was saved at **epoch 62** with a validation accuracy of **98.5%** on the validation set (note: validation accuracy is higher than test accuracy because the model selects the best checkpoint based on validation performance).
 
-![Training Curves](docs/training_curves.png)
+![Training Curves](./docs/training_curves.png)
 
 **Loss components:**
 - **ArcFace Loss:** The primary angular margin loss that enforces a margin of `m = 0.5` in the angular space between embeddings of different classes. Combined with Focal Loss (`gamma=2.0`) to focus on hard examples. Converged from ~4.2 to ~0.4 over training.
@@ -176,7 +176,7 @@ The **CosineAnnealingWarmRestarts** scheduler (`T_0=10, T_mult=2`) was used with
 
 The histogram below shows the distribution of cosine similarities between embedding pairs on the test set. Clear separation between positive (same-logo) and negative (different-logo) pairs validates the effectiveness of the ArcFace training objective.
 
-![Similarity Distribution](docs/similarity_distribution.png)
+![Similarity Distribution](./docs/similarity_distribution.png)
 
 | Metric | Value |
 |--------|-------|
@@ -194,7 +194,7 @@ The chosen threshold of **0.4** sits well within the gap between the two distrib
 
 The confusion matrix below shows per-class recognition results for 15 representative brand classes from the test set. Each row is normalized to percentages.
 
-![Confusion Matrix](docs/confusion_matrix.png)
+![Confusion Matrix](./docs/confusion_matrix.png)
 
 **Notable confusion patterns:**
 - **Adidas ↔ Nike** (6% cross-confusion): Both feature abstract geometric sport logos with similar shapes when viewed at low resolution.
@@ -207,7 +207,7 @@ These confusions are consistent with domain knowledge — brands within the same
 
 ### Per-Class Accuracy
 
-![Per-Class Accuracy](docs/per_class_accuracy.png)
+![Per-Class Accuracy](./docs/per_class_accuracy.png)
 
 **Analysis:**
 - Logos with **distinctive shapes and colors** (Google, Toyota, Apple) achieved the highest accuracy (>95%), as their embeddings are well-separated in the feature space.
